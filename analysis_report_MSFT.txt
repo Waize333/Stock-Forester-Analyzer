@@ -1,0 +1,15 @@
+==== Investment Analysis Report: MSFT ====
+Timeframe: short
+
+RECOMMENDATION: Weak Buy
+
+Both technical indicators and sentiment are mildly positive, suggesting a potential but not compelling opportunity. Consider a small position with careful monitoring.
+
+ANALYSIS SUMMARY:
+• Technical Forecast: BULLISH
+  Current Price: $345.81
+  Predicted Price: $360.18
+  Predicted Change: 4.16% (moderate signal)
+• Market Sentiment: POSITIVE (moderate signal)
+  Sentiment Score: 0.07 (based on 51 news items)
+  Positive News Ratio: 47.1%
