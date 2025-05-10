@@ -1,7 +1,10 @@
-import yfinance as yf
+import requests
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+
+# Replace with your Alpha Vantage API key
+API_KEY = "1E59L4GUHYAO8B3K"
 
 class DynamicStockSelector:
     def __init__(self, tickers, max_stocks=3):
@@ -9,15 +12,33 @@ class DynamicStockSelector:
         self.max_stocks = max_stocks
 
     def fetch_stock_data(self, ticker):
-        """Fetch and process data for a single NYSE stock."""
+        """Fetch and process data for a single stock using Alpha Vantage."""
         try:
-            df = yf.Ticker(ticker).history(period="2d", interval="1h")
-            if df.empty or len(df) < 2:
-                raise ValueError("Insufficient data")
+            # Alpha Vantage API endpoint
+            endpoint = "https://www.alphavantage.co/query"
+            params = {
+                "function": "TIME_SERIES_INTRADAY",
+                "symbol": ticker,
+                "interval": "60min",
+                "apikey": API_KEY,
+                "outputsize": "compact"
+            }
 
-            df = df.reset_index()
-            df.columns = [c.lower() for c in df.columns]
+            # Make the API request
+            response = requests.get(endpoint, params=params)
+            data = response.json()
 
+            # Parse the response
+            time_series_key = "Time Series (60min)"
+            if time_series_key not in data:
+                raise ValueError(f"Error fetching data for {ticker}: {data.get('Note', 'Unknown error')}")
+
+            df = pd.DataFrame(data[time_series_key]).T
+            df.columns = ['open', 'high', 'low', 'close', 'volume']
+            df = df.astype(float).reset_index()
+            df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume']
+
+            # Calculate metrics
             volatility = df['close'].pct_change().std()
             volume = df['volume'].mean()
             liquidity = df['close'].iloc[-1] * df['volume'].iloc[-1]
@@ -75,20 +96,10 @@ class DynamicStockSelector:
         print("Top selected stocks:")
         print(top_stocks[['ticker', 'score']])
 
-    
         return top_stocks['ticker'].tolist()
 
 def select_stocks(tickers=None, max_stocks=3):
-    """
-    Module-level function to select top-performing stocks.
-    
-    Args:
-        tickers (list, optional): List of stock tickers to analyze. Defaults to popular tech stocks.
-        max_stocks (int, optional): Maximum number of stocks to return. Defaults to 3.
-        
-    Returns:
-        list: Ticker symbols of top-performing stocks
-    """
+
     if tickers is None:
         tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'JNJ', 'JPM', 'V', 'NVDA']
     
