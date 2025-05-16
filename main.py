@@ -2,16 +2,16 @@ import pandas as pd
 import numpy as np
 import time
 import os
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Optional
 import model
 import top_performer as tp
 import stockData as sk
 import news_pipeline as npp
 
-def create_sentiment_csv():
-        api_key = "d0abq39r01qm3l9kf2vgd0abq39r01qm3l9kf300"
-        ticker = tp.select_stocks(max_stocks=3)[0]  # Select the first ticker
-        npp.main(api_key, [ticker])
+def create_sentiment_csv(api_key: str = "d0abq39r01qm3l9kf2vgd0abq39r01qm3l9kf300"):
+    """Generate sentiment analysis CSV for stocks"""
+    ticker = tp.select_stocks(max_stocks=3)[0]  # Select the first ticker
+    npp.main(api_key, [ticker])
 
 
 def load_sentiment_from_csv(symbol: str, filepath: str = "news_sentiment_20250505.csv") -> Dict[str, Any]:
@@ -87,6 +87,39 @@ def load_sentiment_from_csv(symbol: str, filepath: str = "news_sentiment_2025050
         return {'score': 0, 'volume': 0, 'positive_count': 0, 'negative_count': 0, 'positive_ratio': 0}
 
 
+def analyze_sentiment(ticker: str) -> Dict[str, Any]:
+    """
+    Analyze sentiment for a ticker by checking available sentiment files
+    
+    Args:
+        ticker: Stock ticker symbol
+    
+    Returns:
+        Dictionary with sentiment metrics
+    """
+    print(f"--- Analyzing Sentiment for {ticker} ---")
+    
+    # Try different date formats for sentiment files
+    sentiment_files = [
+        f"news_sentiment_{time.strftime('%Y%m%d')}.csv",  # today's date
+        "news_sentiment.csv",  # default filename
+        "news_sentiment_20250505.csv"  # example provided file
+    ]
+    
+    sentiment_data = None
+    for file in sentiment_files:
+        if os.path.exists(file):
+            sentiment_data = load_sentiment_from_csv(ticker, file)
+            print(f"Loaded sentiment data from: {file}")
+            break
+    
+    if sentiment_data is None:
+        print("No sentiment data files found. Using neutral sentiment.")
+        sentiment_data = {'score': 0, 'volume': 0, 'positive_count': 0, 'negative_count': 0, 'positive_ratio': 0}
+    
+    return sentiment_data
+
+
 def generate_recommendation(price_direction: float, 
                           price_strength: str,
                           sentiment_score: float, 
@@ -146,7 +179,7 @@ def generate_recommendation(price_direction: float,
 
 
 def generate_analysis_report(symbol: str, price_prediction: Dict[str, Any], 
-                           sentiment_data: Dict[str, Any], timeframe: str = "short") -> str:
+                          sentiment_data: Dict[str, Any], timeframe: str = "short") -> Tuple[str, str, str, str, str]:
     """
     Generate a human-readable report of the analysis
     
@@ -157,7 +190,7 @@ def generate_analysis_report(symbol: str, price_prediction: Dict[str, Any],
         timeframe: Analysis timeframe
         
     Returns:
-        Formatted analysis report as string
+        Tuple of (report_text, recommendation, explanation, price_strength, sentiment_strength)
     """
     # Extract metrics
     price_direction = price_prediction.get('direction', 0)
@@ -194,45 +227,53 @@ def generate_analysis_report(symbol: str, price_prediction: Dict[str, Any],
         f"  Positive News Ratio: {sentiment_data.get('positive_ratio', 0):.1%}"
     ]
     
-    return "\n".join(report)
+    return "\n".join(report), recommendation, explanation, price_strength, sentiment_strength
 
 
-def main():
-    # Fetch stock data
-    interval = "15m"          # Changed to daily for more reliable data
-    num_candles = 1280       # Reasonable number of candles
-
-    try:
-        top_tickers = tp.select_stocks()
-    except Exception as e:
-        print(f"Error calling select_stocks(): {e}")
-        top_tickers = ["AAPL", "MSFT", "GOOGL"]  # Default tickers if selection fails
-        
-    if not top_tickers:
-        print("No tickers returned from select_stocks()")
-        top_tickers = ["AAPL"]  # Default ticker
-        
-    print(f"Selected tickers: {', '.join(top_tickers)}")
-    ticker = top_tickers[0]  # Use first ticker
+def smart_stock_analysis(ticker: str, interval: str, num_candles: int, 
+                      callback_fn=None) -> Dict[str, Any]:
+    """
+    Run a complete stock analysis using RNN and sentiment data
+    This function can be used by both CLI and GUI applications
     
-    # Try to fetch data
-    print(f"Fetching {num_candles} {interval} candles for: {ticker}")
+    Args:
+        ticker: Stock ticker symbol
+        interval: Time interval for candles (e.g., "15m", "1h", "1d")
+        num_candles: Number of candles to fetch
+        callback_fn: Optional callback function to report progress/logs
+    
+    Returns:
+        Dictionary containing analysis results
+    """
+    # Optional progress logging
+    def log(message, is_header=False):
+        if callback_fn:
+            callback_fn(message, is_header)
+        else:
+            if is_header:
+                print("\n" + "=" * 40)
+                print(message)
+                print("=" * 40)
+            else:
+                print(message)
+    
+    # 1. Fetch stock data
+    log(f"Fetching {num_candles} {interval} candles for: {ticker}", True)
     data_df = sk.fetch_candles(ticker, interval, num_candles)
-
-    create_sentiment_csv()  # Create sentiment CSV if not already done
     
-    # Wait briefly to ensure data fetching is complete
-    print("Waiting 5 seconds for data processing and sentiment collection")
-    time.sleep(5)
-
-    # Read data and prepare for training
+    # 2. Analyze sentiment
+    log(f"Analyzing sentiment for {ticker}", True)
+    sentiment_data = analyze_sentiment(ticker)
+    
+    # 3. Read and prepare data
+    log("Preparing data for analysis", True)
     try:
         data = pd.read_csv("data.csv")
         data = data.ffill()  # Forward fill any missing values
-        print(f"Loaded data with {len(data)} rows")
+        log(f"Loaded data with {len(data)} rows")
     except Exception as e:
-        print(f"Error loading data: {e}")
-        return
+        log(f"Error loading data: {e}")
+        return {"error": str(e)}
     
     # Define predictors and target
     PREDICTORS = ["open", "high", "low"]
@@ -243,8 +284,9 @@ def main():
     
     # Scale the data
     data[PREDICTORS + [TARGET]] = model.standard_scale(data, PREDICTORS + [TARGET])
-
-    # Split into train, valid, test sets
+    
+    # 4. Split into train, valid, test sets
+    log("Training model", True)
     np.random.seed(0)
     split_data = np.split(data, [int(.7*len(data)), int(.85*len(data))])
     (train_x, train_y), (valid_x, valid_y), (test_x, test_y) = [
@@ -261,20 +303,20 @@ def main():
     # Check if we should load or train model
     model_path = f"model_{ticker}.npy"
     if os.path.exists(model_path):
-        print(f"Found existing model for {ticker}. Loading...")
+        log(f"Found existing model for {ticker}. Loading...")
         layers = model.load_model(ticker)
         if layers is None:
-            print("Failed to load model. Training new model...")
+            log("Failed to load model. Training new model...")
             layers = model.train_model(train_x, train_y, valid_x, valid_y, layer_conf)
     else:
-        print(f"No existing model found for {ticker}. Training new model...")
+        log(f"No existing model found for {ticker}. Training new model...")
         layers = model.train_model(train_x, train_y, valid_x, valid_y, layer_conf)
         
     # Save the trained model
     model.save_model(layers, ticker)
-        
-    # Make prediction
-    print("\n--- Making Prediction for Next Candle ---")
+    
+    # 5. Make prediction
+    log("Making prediction for next candle", True)
     
     # Get the most recent sequence for prediction
     sequence_len = 100
@@ -294,12 +336,12 @@ def main():
     price_change = next_price - last_known_price
     price_change_pct = price_change / last_known_price
     
-    print(f"Last known price: ${last_known_price:.2f}")
-    print(f"Predicted next price: ${next_price:.2f}")
-    print(f"Expected change: ${price_change:.2f} ({price_change_pct:.2%})")
+    log(f"Last known price: ${last_known_price:.2f}")
+    log(f"Predicted next price: ${next_price:.2f}")
+    log(f"Expected change: ${price_change:.2f} ({price_change_pct:.2%})")
     
     direction = 1 if price_change > 0 else -1
-    print(f"Prediction: {'📈 PRICE INCREASE' if direction > 0 else '📉 PRICE DECREASE'}")
+    log(f"Prediction: {'📈 PRICE INCREASE' if direction > 0 else '📉 PRICE DECREASE'}")
     
     # Create price prediction dictionary
     price_prediction = {
@@ -311,37 +353,76 @@ def main():
         'confidence': 0.6  # Base confidence - can be adjusted
     }
     
-    # Get sentiment data for current symbol
-    print(f"\n--- Analyzing Sentiment for {ticker} ---")
+    # 6. Generate the full analysis report
+    log("Generating final analysis", True)
+    report, recommendation, explanation, price_strength, sentiment_strength = generate_analysis_report(
+        ticker, price_prediction, sentiment_data
+    )
     
-    # Try different date formats for sentiment files
-    sentiment_files = [
-        f"news_sentiment_{time.strftime('%Y%m%d')}.csv",  # today's date
-        "news_sentiment.csv",  # default filename
-        "news_sentiment_20250505.csv"  # example provided file
-    ]
+    # 7. Return all analysis results in a structured format
+    return {
+        'ticker': ticker,
+        'stock_data': data_df,
+        'price_prediction': price_prediction,
+        'sentiment_data': sentiment_data,
+        'recommendation': {
+            'report': report,
+            'recommendation': recommendation,
+            'explanation': explanation,
+            'price_strength': price_strength,
+            'sentiment_strength': sentiment_strength,
+            'price_direction': direction,
+            'sentiment_score': sentiment_data.get('score', 0)
+        }
+    }
+
+
+def select_top_stocks(max_stocks: int = 3) -> List[str]:
+    """
+    Select top performing stocks
     
-    sentiment_data = None
-    for file in sentiment_files:
-        if os.path.exists(file):
-            sentiment_data = load_sentiment_from_csv(ticker, file)
-            print(f"Loaded sentiment data from: {file}")
-            break
+    Args:
+        max_stocks: Maximum number of stocks to select
     
-    if sentiment_data is None:
-        print("No sentiment data files found. Using neutral sentiment.")
-        sentiment_data = {'score': 0, 'volume': 0, 'positive_count': 0, 'negative_count': 0, 'positive_ratio': 0}
+    Returns:
+        List of ticker symbols
+    """
+    try:
+        top_tickers = tp.select_stocks(max_stocks=max_stocks)
+        if not top_tickers:
+            print("No tickers returned from select_stocks()")
+            top_tickers = ["AAPL"]  # Default ticker
+    except Exception as e:
+        print(f"Error calling select_stocks(): {e}")
+        top_tickers = ["AAPL", "MSFT", "GOOGL"]  # Default tickers if selection fails
     
-    # Generate the full analysis report
+    print(f"Selected tickers: {', '.join(top_tickers)}")
+    return top_tickers
+
+
+def main():
+    # Fetch stock data
+    interval = "15m"          # Changed to daily for more reliable data
+    num_candles = 1280       # Reasonable number of candles
+
+    top_tickers = select_top_stocks()
+    ticker = top_tickers[0]  # Use first ticker
+    
+    create_sentiment_csv()  # Create sentiment CSV if not already done
+    
+    # Call the main analysis function
+    analysis_results = smart_stock_analysis(ticker, interval, num_candles)
+    
+    # Print the analysis report to console
+    report = analysis_results['recommendation']['report']
     print("\n" + "=" * 50)
-    analysis_report = generate_analysis_report(ticker, price_prediction, sentiment_data)
-    print(analysis_report)
+    print(report)
     print("=" * 50)
     
     # Save the analysis report to a file
     report_file = f"analysis_report_{ticker}.txt"
     with open(report_file, "w") as f:
-        f.write(analysis_report)
+        f.write(report)
     print(f"\nAnalysis report saved to {report_file}")
 
 

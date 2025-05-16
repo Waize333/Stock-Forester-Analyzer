@@ -3,8 +3,13 @@ import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
-# Replace with your Alpha Vantage API key
-API_KEY = "1E59L4GUHYAO8B3K"
+# Alpha Vantage API key
+# Old keys:
+# API_KEY = "1E59L4GUHYAO8B3K"
+# API_KEY = "FVGKGAH0YR15ISRS"
+# API_KEY = "1IOHS5A8MEGP1RBA"
+# API_KEY = "XF1WJ0RX54CZJ0IO"
+API_KEY = " ZTWP7FZ2RTWDY3EG"
 
 class DynamicStockSelector:
     def __init__(self, tickers, max_stocks=3):

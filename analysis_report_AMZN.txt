@@ -1,0 +1,15 @@
+==== Investment Analysis Report: AMZN ====
+Timeframe: short
+
+RECOMMENDATION: Weak Sell/Caution
+
+Mild negative signals suggest caution. Better opportunities exist elsewhere.
+
+ANALYSIS SUMMARY:
+• Technical Forecast: BEARISH
+  Current Price: $187.12
+  Predicted Price: $183.37
+  Predicted Change: -2.00% (weak signal)
+• Market Sentiment: NEGATIVE (weak signal)
+  Sentiment Score: -0.01 (based on 37 news items)
+  Positive News Ratio: 40.5%

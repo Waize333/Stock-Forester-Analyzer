@@ -1,0 +1,15 @@
+==== Investment Analysis Report: AAPL ====
+Timeframe: short
+
+RECOMMENDATION: Wait for Reversal
+
+Technical indicators currently bearish despite strong positive sentiment. This divergence suggests a potential reversal opportunity - watch closely for technical confirmation of the positive fundamentals.
+
+ANALYSIS SUMMARY:
+• Technical Forecast: BEARISH
+  Current Price: $92.37
+  Predicted Price: $70.24
+  Predicted Change: -23.96% (strong signal)
+• Market Sentiment: POSITIVE (strong signal)
+  Sentiment Score: 0.08 (based on 72 news items)
+  Positive News Ratio: 45.8%

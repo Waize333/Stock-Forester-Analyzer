@@ -2,7 +2,12 @@ import requests
 import pandas as pd
 import top_performer
 
-API_KEY = "1E59L4GUHYAO8B3K"
+# Alpha Vantage API key
+# Old keys:
+# API_KEY = "1E59L4GUHYAO8B3K"
+# API_KEY = "FVGKGAH0YR15ISRS"
+# API_KEY = "1IOHS5A8MEGP1RBA"
+API_KEY = " ZTWP7FZ2RTWDY3EG"
 
 def fetch_candles(ticker, interval, num_candles):
     interval_mapping = {
